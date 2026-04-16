@@ -1,9 +1,18 @@
 import Mathlib
+/-Lean has an inbuilt linter, the following switches it off. Done for pedagogical reasons. Not advisable-/
 set_option linter.all false
 
 universe u
 
-/-- Linked Tree. Note: Is there anything specific about HeapTree's here? -/
+/-- We want to develop a visualiser for datastructures. Since we already saw some  trees, we will stick to MaxHeap. We will attempt to to probe and prove some properties of the visualiser, along with properties of MaxHeap. In order to do this, we need to first do the following:
+1. Create a MaxHeap datastructure and possible prove a few nice properties of the datastructure
+2. Create a framework for visualiser in Lean as a datatype, which also encodes the information co-ordinates of leafs and nodes.
+3. Map the trees to visualiser.
+4. Prove properties in the visualiser.
+--/
+
+/- Linked Tree. Note: Is there anything specific about HeapTree's here?
+ -/
 inductive HeapTree (α : Type u)
 | leaf : HeapTree α
 | node : HeapTree α → α → HeapTree α → HeapTree α
@@ -13,13 +22,16 @@ namespace HeapTree
 
 /- Checks if the immediate root of a given subtree is ≤ a parent value, if the tree is not a leaf.
 -/
-def RootBounded [LE α] (parentVal : α) : HeapTree α → Prop
+
+variable {α : Type u} [LE α] [DecidableEq α]
+
+def RootBounded (parentVal : α) : HeapTree α → Prop
 | leaf => True
 | node l childVal r => childVal ≤ parentVal
 
 /-- ##Defining Max Heap in terms of Prop
 -/
-inductive IsMaxHeap [LE α] : HeapTree α → Prop where
+inductive IsMaxHeap : HeapTree α → Prop where
 | leaf : IsMaxHeap leaf
 | node (l : HeapTree α) (v : α) (r : HeapTree α) :
     IsMaxHeap l →
@@ -29,7 +41,7 @@ inductive IsMaxHeap [LE α] : HeapTree α → Prop where
     IsMaxHeap (node l v r)
 
 
-def collectNodes [DecidableEq α] : HeapTree α → Finset α
+def collectNodes : HeapTree α → Finset α
 | HeapTree.leaf => {}
 | HeapTree.node l v r => (collectNodes l) ∪ {v} ∪ (collectNodes r)
 
@@ -41,7 +53,7 @@ def getNode : (HeapTree α) → (Option α)
  | node _ v _ => (some v)
 
 /- some lemmas to introduce tactics -/
-lemma heap_singleton (v : α) [LE α] :
+lemma heap_singleton (v : α) :
   IsMaxHeap (HeapTree.node HeapTree.leaf v HeapTree.leaf) := by
   constructor <;> simp[IsMaxHeap.leaf, RootBounded]
 
@@ -54,7 +66,23 @@ lemma simp_all_cleanup (a b : Nat) (h1 : a = b) (h2 : b = 3) :
   a = 3 := by
   simp_all
 
-/- Back to usual theorems -/
+theorem exists_and_left {α : Type} {P Q : α → Prop} (h : ∃ x, P x ∧ Q x) : ∃ x, P x := by
+  rcases h with ⟨x, hp, hq⟩
+  use x
+
+
+
+/- Back to usual theoremss -/
+
+/-- We will use the following tactic in the following:
+The `rcases` (recursive cases) tactic is used to destructure nested data
+structures in a single step.
+
+Patterns:
+- ⟨x, h⟩ : Destructures "AND-like" types (∧, ∃, Prod, Sigma).
+- h1 | h2 : Splits "OR-like" types (∨, Sum) into separate branches.
+- rfl     : Automatically performs substitution for equalities.
+-/
 
 lemma root_is_max (t : HeapTree Nat) (h : IsMaxHeap t) (h_eq : t ≠ leaf) :
   ∀ elem ∈ collectNodes t, (getNode t).get! ≥ elem := by
@@ -63,30 +91,22 @@ lemma root_is_max (t : HeapTree Nat) (h : IsMaxHeap t) (h_eq : t ≠ leaf) :
   | node l v r ihl ihr =>
      intro elem helem
      simp[getNode]
-     unfold collectNodes at helem
-     simp at helem
-     rcases helem with h1 | h2 | h3
-     · simp[h1]
+     simp[collectNodes] at helem
+     rcases helem with hv | hl | hr
+     · simp[hv]
      · cases l with
-       | leaf => simp[collectNodes] at h2
-       | node l' v' r' =>
-          cases h
-          case node hl hb hbl hbr =>
-          simp[RootBounded] at hb
-          have hv': v' ≥ elem := by
-           simp[hl] at ihl
-           exact (ihl elem h2)
+       | leaf => simp[collectNodes] at hl
+       | node ll vl rl =>
+         cases h
+         case node ha hb hbl hbr =>
+          rw[RootBounded] at hb
+          have hv': vl ≥ elem := by
+            simp [ha] at ihl
+            exact (ihl  elem hl)
           grind
      · cases r with
-       | leaf => simp[collectNodes] at h3
-       | node l' v' r' =>
-          cases h
-          case node hl hb hbl hbr=>
-          simp[RootBounded] at hbr
-          have hv': v' ≥ elem := by
-            simp [hbl] at ihr
-            exact (ihr elem h3)
-          grind
+       | leaf => simp[collectNodes] at hr
+       | node l' v' r' => sorry -- fill this in
 
 
 /-- 2D Grid Position -/
@@ -162,7 +182,7 @@ lemma layoutAux_y_eq_depth {α : Type u} (t : HeapTree α) (depth nextX : Int)
         | leaf => grind
         | node l' v' r' => grind
 
-
+/-We prove the property that y co-ordinate decreases -/
 lemma layout_y_decreases {α : Type u} (t : HeapTree α) (depth nextX : Int)
   (dt : DrawnTree α) (nextX' : Int) :
   HeapTree.layoutAux t depth nextX = (some dt, nextX') →
@@ -174,6 +194,7 @@ lemma layout_y_decreases {α : Type u} (t : HeapTree α) (depth nextX : Int)
   | node l v r ihl ihr =>
     intro h
     unfold layoutAux at h
+  --observe what generalize is doing
     generalize hl : layoutAux l (depth - 1) nextX = resL at h
     rcases resL with ⟨drawLeft, nextX1⟩
     generalize hr : layoutAux r (depth - 1) (nextX1 + 1) = resR at h
@@ -185,23 +206,27 @@ lemma layout_y_decreases {α : Type u} (t : HeapTree α) (depth nextX : Int)
     cases h_l : drawLeft with
     | none =>
       cases h_r : drawRight with
+--neither child exists
       | none => grind
+--right child exists
       | some dt_r =>
         have h_r_y := layoutAux_y_eq_depth r (depth - 1) (nextX1 + 1) dt_r nextX2
         have h_r_dec := ihr (depth - 1) (nextX1 + 1) dt_r nextX2
         grind
+
     | some dt_l =>
       cases h_r : drawRight with
+--only left child exists
       | none =>
         have h_l_y := layoutAux_y_eq_depth l (depth - 1) nextX dt_l nextX1
         have h_l_dec := ihl (depth - 1) nextX dt_l nextX1
         grind
+--both the child exists
       | some dt_r =>
-        -- Both children exist
-        have h_l_y := layoutAux_y_eq_depth l (depth - 1) nextX dt_l nextX1
         have h_l_dec := ihl (depth - 1) nextX dt_l nextX1
-        have h_r_y := layoutAux_y_eq_depth r (depth - 1) (nextX1 + 1) dt_r nextX2
         have h_r_dec := ihr (depth - 1) (nextX1 + 1) dt_r nextX2
+        have h_l_y := layoutAux_y_eq_depth l (depth - 1) nextX dt_l nextX1
+        have h_r_y := layoutAux_y_eq_depth r (depth - 1) (nextX1 + 1) dt_r nextX2
         grind
 
 theorem layout_x_ordered (t : HeapTree α) (depth : Int) (nextX : Int) :
@@ -227,15 +252,14 @@ theorem layout_x_ordered (t : HeapTree α) (depth : Int) (nextX : Int) :
         simp
         have prop_r := ih_r (depth - 1) (nextX1 + 1)
         rw [h_r] at prop_r
-
         constructor
         · intro l h_left; simp [h_left] at *
           sorry
         · intro r h_right; simp [h_right] at *
           sorry
+/-**Exercise** Finish this proof-/
 
-
-
+/-**Exercises** Think of other properties and write their proofs.-/
 partial def toJson (dt : DrawnTree Nat) : String :=
   let leftStr := match dt.left with
     | none => "null"
@@ -259,3 +283,6 @@ def main (args : List String) : IO Unit := do
   match HeapTree.layout demoTree with
   | none => IO.println "null"
   | some drawn => IO.println drawn.toJson
+
+
+/-Try to implement this to extract a Json.-/
