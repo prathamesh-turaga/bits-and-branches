@@ -11,7 +11,7 @@ deriving Repr
 
 namespace HeapTree
 
-/- Checks if the immediate root of a given subtree is ≤ a parent value. If the subtree is a leaf, it's vacuously true.
+/- Checks if the immediate root of a given subtree is ≤ a parent value, if the tree is not a leaf.
 -/
 def RootBounded [LE α] (parentVal : α) : HeapTree α → Prop
 | leaf => True
@@ -61,8 +61,8 @@ lemma root_is_max (t : HeapTree Nat) (h : IsMaxHeap t) (h_eq : t ≠ leaf) :
   induction t with
   | leaf => simp[collectNodes]
   | node l v r ihl ihr =>
-     simp[getNode]
      intro elem helem
+     simp[getNode]
      unfold collectNodes at helem
      simp at helem
      rcases helem with h1 | h2 | h3
@@ -97,16 +97,11 @@ deriving Repr, DecidableEq
 
 /-- The Visual Tree Structure -/
 structure DrawnTree (α : Type u) where
-  val   : α
+  val : α
   pos   : Pos
   left  : Option (DrawnTree α)
   right : Option (DrawnTree α)
 deriving Repr
-
-
-
-
-
 
 /--
   Helper function that threads the current depth and the next available X-coordinate.
@@ -179,7 +174,6 @@ lemma layout_y_decreases {α : Type u} (t : HeapTree α) (depth nextX : Int)
   | node l v r ihl ihr =>
     intro h
     unfold layoutAux at h
-
     generalize hl : layoutAux l (depth - 1) nextX = resL at h
     rcases resL with ⟨drawLeft, nextX1⟩
     generalize hr : layoutAux r (depth - 1) (nextX1 + 1) = resR at h
