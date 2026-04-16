@@ -1,13 +1,10 @@
-# bits-and-branches
 
-## GitHub configuration
+Created for LeanHackathon by [Emergence AI](https://emergence.ai)
 
-To set up your new GitHub repository, follow these steps:
+Following are the files:
 
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
+1. **PicTreeLang**: Inspired by [Cope and Drag (Brown CS)](https://cs.brown.edu/people/sk/Publications/Papers/Published/pgnk-cope-and-drag/). Essential idea is to formally verify visualisations of tree structures. We do it with the case of MaxHeaps by focussing on a few "nice" properties.
 
-After following the steps above, you can remove this section from the README file.
+2. **CompLang**: This is essentially a compiler for a small programming language without loops, but allowing variable mutations.
+
+3. **MonadicCompLang**: We repeat the exercise in CompLang, but this time using Monads.
