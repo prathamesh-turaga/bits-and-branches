@@ -1,8 +1,9 @@
 import Mathlib
+set_option linter.all false
 
 universe u
 
-/-- 1. Our Pointer-Based Tree AST -/
+/-- Linked Tree. Note: Is there anything specific about HeapTree's here? -/
 inductive HeapTree (α : Type u)
 | leaf : HeapTree α
 | node : HeapTree α → α → HeapTree α → HeapTree α
@@ -10,36 +11,23 @@ deriving Repr
 
 namespace HeapTree
 
-/--
-  2. The Local Bound Helper
-  Checks if the immediate root of a given subtree is ≤ a parent value.
-  If the subtree is a leaf, it's vacuously true.
+/- Checks if the immediate root of a given subtree is ≤ a parent value. If the subtree is a leaf, it's vacuously true.
 -/
 def RootBounded [LE α] (parentVal : α) : HeapTree α → Prop
 | leaf => True
-| node _ childVal _ => childVal ≤ parentVal
+| node l childVal r => childVal ≤ parentVal
 
-/--
-  3. The Max Heap Invariant
-  Defined inductively. Notice how we only ever look exactly ONE step down,
-  which makes this wonderfully easy for beginners to use in proofs.
+/-- ##Defining Max Heap in terms of Prop
 -/
 inductive IsMaxHeap [LE α] : HeapTree α → Prop where
 | leaf : IsMaxHeap leaf
 | node (l : HeapTree α) (v : α) (r : HeapTree α) :
-    IsMaxHeap l →            -- The left subtree must be a max heap
-    IsMaxHeap r →            -- The right subtree must be a max heap
-    RootBounded v l →        -- The parent value is ≥ the left child's value
-    RootBounded v r →        -- The parent value is ≥ the right child's value
+    IsMaxHeap l →
+    IsMaxHeap r →
+    RootBounded v l →
+    RootBounded v r →
     IsMaxHeap (node l v r)
-/-
-inductive CollectNodes (α : Type u) (t : HeapTree α) {Set} : (Set α) where
-| leaf  => {}
-| node l v r => (CollectNodes l) ∪ {v} ∪ (CollectNodes r)
-deriving Repr
 
-lemma IsMaxHeapGeq (t : HeapTree) (h:  t = node l v r ):
--/
 
 def collectNodes [DecidableEq α] : HeapTree α → Finset α
 | HeapTree.leaf => {}
@@ -59,13 +47,11 @@ lemma heap_singleton (v : α) [LE α] :
 
  lemma simp_cleanup (a b : Nat) (h1 : a = b) (h2 : b = 3) :
   a = 3 := by
-  -- one-line solution using simp_all
   subst h1
   exact h2
 
 lemma simp_all_cleanup (a b : Nat) (h1 : a = b) (h2 : b = 3) :
   a = 3 := by
-  -- one-line solution using simp_all
   simp_all
 
 /- Back to usual theorems -/
@@ -129,16 +115,13 @@ deriving Repr
 def layoutAux : HeapTree α → Int → Int → (Option (DrawnTree α) × Int)
 | leaf, _, nextX => (none, nextX)
 | node l v r, depth, nextX =>
-    -- 1. Traverse Left: Pass the current nextX down.
+
     let (drawLeft, nextX₁) := layoutAux l (depth - 1) nextX
 
-    -- 2. Visit Root: The root claims the X returned by the left subtree.
     let rootX := nextX₁
 
-    -- 3. Traverse Right: Pass rootX + 1 to the right subtree.
     let (drawRight, nextX₂) := layoutAux r (depth - 1) (rootX + 1)
 
-    -- 4. Construct the visual node
     let drawnNode := {
       val   := v
       pos   := ⟨rootX, depth⟩
@@ -205,7 +188,6 @@ lemma layout_y_decreases {α : Type u} (t : HeapTree α) (depth nextX : Int)
     injection h_tree with hdt
     rw[← hdt]
     unfold DrawnTree.YDecreases
-    -- 4. Check all 4 possible combinations of children
     cases h_l : drawLeft with
     | none =>
       cases h_r : drawRight with
@@ -238,12 +220,10 @@ theorem layout_x_ordered (t : HeapTree α) (depth : Int) (nextX : Int) :
   case leaf => simp [layoutAux]
   case node val left right ih_l ih_r =>
     simp [layoutAux]
-    -- 1. Generalize the state-threading results
     generalize h_l : layoutAux val (depth - 1) nextX = res_l
     match res_l with
     | (dt_l, nextX1) =>
       simp
-      -- 2. Use the Inductive Hypotheses
       have prop_l := ih_l (depth - 1) nextX
       rw [h_l] at prop_l
 
@@ -254,19 +234,14 @@ theorem layout_x_ordered (t : HeapTree α) (depth : Int) (nextX : Int) :
         have prop_r := ih_r (depth - 1) (nextX1 + 1)
         rw [h_r] at prop_r
 
-        -- 3. The "Omega" magic
-        -- Lean knows dt.pos.x is exactly nextX1
         constructor
         · intro l h_left; simp [h_left] at *
           sorry
         · intro r h_right; simp [h_right] at *
           sorry
-          -- dt.pos.x is nextX1, and right child starts at nextX1 + 1
-          -- so it's guaranteed to be greater.
 
 
 
- -- 1. A simple recursive function to turn our DrawnTree into a JSON string
 partial def toJson (dt : DrawnTree Nat) : String :=
   let leftStr := match dt.left with
     | none => "null"
@@ -274,9 +249,6 @@ partial def toJson (dt : DrawnTree Nat) : String :=
   let rightStr := match dt.right with
     | none => "null"
     | some r => toJson r
-
-
-  -- Manually concatenating to avoid any string interpolation syntax issues live
   "{\"val\": " ++ toString dt.val ++
   ", \"x\": " ++ toString dt.pos.x ++
   ", \"y\": " ++ toString dt.pos.y ++
@@ -285,11 +257,10 @@ partial def toJson (dt : DrawnTree Nat) : String :=
 
 end DrawnTree
 end HeapTree
--- 2. A test tree to visualize
+
 def demoTree : HeapTree Nat :=
   HeapTree.node (HeapTree.node (HeapTree.node  HeapTree.leaf 4 HeapTree.leaf) 8 (HeapTree.node HeapTree.leaf 3 HeapTree.leaf)) 15 (HeapTree.node HeapTree.leaf 10 HeapTree.leaf)
 
--- 3. The main function that runs the layout and prints ONLY the JSON
 def main (args : List String) : IO Unit := do
   match HeapTree.layout demoTree with
   | none => IO.println "null"
